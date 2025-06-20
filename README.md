@@ -31,15 +31,14 @@ A bilingual document parsing model built specifically for real-world documents i
 
 ## Image Inference Demo
 
-![Screenshot 2025-06-20 at 12-52-08 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/404899f4-14e0-4027-aaac-4c54fdeb3f2a)
-
----
-
 ![Screenshot 2025-06-20 at 12-51-03 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/1448dc30-0f9c-4635-900b-b49d4baf3971)
 
 ---
 
 ![Screenshot 2025-06-20 at 12-49-32 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/5e2d066c-7e38-4b3f-8bc2-d0cfdbc1e682)
+
+---
+![Screenshot 2025-06-20 at 12-52-08 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/404899f4-14e0-4027-aaac-4c54fdeb3f2a)
 
 ---
 
