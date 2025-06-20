@@ -6,7 +6,7 @@ A comprehensive multimodal OCR application that supports both image and video do
 Demo here : https://huggingface.co/spaces/prithivMLmods/Multimodal-OCR2
 
 > [!important]
-The community GPU grant was given by Hugging Face — special thanks to them. 🤗🚀
+The community GPU grant was given by [Hugging Face](https://huggingface.co/prithivMLmods) — special thanks to them. 🤗🚀
 
 ## Features
 
