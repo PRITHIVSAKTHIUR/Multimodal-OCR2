@@ -150,9 +150,9 @@ The application uses CUDA acceleration when available and falls back to CPU proc
 
 ## Hardware Requirements
 
-- **Minimum**: 8GB RAM, CPU
-- **Recommended**: 16GB+ RAM, CUDA-compatible GPU with 8GB+ VRAM
-- **Storage**: 10GB+ free space for model downloads
+- **Minimum**: 12GB RAM, CPU
+- **Recommended**: 40GB+ RAM, CUDA-compatible GPU 
+- **Storage**: 50GB+ free space for model downloads
 
 ## Contributing
 
