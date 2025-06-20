@@ -28,6 +28,31 @@ Adopts a Structure-Recognition-Relation (SRR) triplet paradigm, which simplifies
 ### Typhoon-OCR-7B
 A bilingual document parsing model built specifically for real-world documents in Thai and English. Extracts and interprets embedded text including chart labels and captions in both languages.
 
+
+## Image Inference Demo
+
+![Screenshot 2025-06-20 at 12-52-08 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/404899f4-14e0-4027-aaac-4c54fdeb3f2a)
+
+---
+
+![Screenshot 2025-06-20 at 12-51-03 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/1448dc30-0f9c-4635-900b-b49d4baf3971)
+
+---
+
+![Screenshot 2025-06-20 at 12-49-32 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/5e2d066c-7e38-4b3f-8bc2-d0cfdbc1e682)
+
+---
+
+## Video Inference Demo
+
+https://github.com/user-attachments/assets/1df2349d-ecf1-43bc-adbf-3e4f9c3cc708
+
+---
+
+https://github.com/user-attachments/assets/f127606c-4d0b-468e-b7be-d124d2f9ee2b
+
+---
+
 ## Installation
 
 1. Clone the repository:
