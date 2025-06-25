@@ -42,8 +42,6 @@ A bilingual document parsing model built specifically for real-world documents i
 
 ---
 
-## Video Inference Demo
-
 https://github.com/user-attachments/assets/1df2349d-ecf1-43bc-adbf-3e4f9c3cc708
 
 ---
