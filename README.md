@@ -29,7 +29,7 @@ Adopts a Structure-Recognition-Relation (SRR) triplet paradigm, which simplifies
 A bilingual document parsing model built specifically for real-world documents in Thai and English. Extracts and interprets embedded text including chart labels and captions in both languages.
 
 
-## Image Inference Demo
+## Image / Video Inference Demo
 
 ![Screenshot 2025-06-20 at 12-51-03 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/1448dc30-0f9c-4635-900b-b49d4baf3971)
 
