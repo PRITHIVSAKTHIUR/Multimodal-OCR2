@@ -59,7 +59,7 @@ model_g = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     torch_dtype=torch.float16
 ).to(device).eval()
 
-# Load typhoon-ocr-7b
+# Load Typhoon-OCR-7B
 MODEL_ID_L = "scb10x/typhoon-ocr-7b"
 processor_l = AutoProcessor.from_pretrained(MODEL_ID_L, trust_remote_code=True)
 model_l = Qwen2_5_VLForConditionalGeneration.from_pretrained(
@@ -68,7 +68,6 @@ model_l = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     torch_dtype=torch.float16
 ).to(device).eval()
 
-#--------------------------------------------------#
 # Load SmolDocling-256M-preview
 MODEL_ID_X = "ds4sd/SmolDocling-256M-preview"
 processor_x = AutoProcessor.from_pretrained(MODEL_ID_X, trust_remote_code=True)
@@ -77,7 +76,6 @@ model_x = AutoModelForVision2Seq.from_pretrained(
     trust_remote_code=True,
     torch_dtype=torch.float16
 ).to(device).eval()
-#--------------------------------------------------#
 
 # Preprocessing functions for SmolDocling-256M
 def add_random_padding(image, min_percent=0.1, max_percent=0.10):
@@ -147,11 +145,11 @@ def generate_image(model_name: str, text: str, image: Image.Image,
         processor = processor_l
         model = model_l
     else:
-        yield "Invalid model selected."
+        yield "Invalid model selected.", "Invalid model selected."
         return
 
     if image is None:
-        yield "Please upload an image."
+        yield "Please upload an image.", "Please upload an image."
         return
 
     # Prepare images as a list (single image for image inference)
@@ -190,17 +188,15 @@ def generate_image(model_name: str, text: str, image: Image.Image,
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
-    # Stream output and collect full response
+    # Stream output
     buffer = ""
-    full_output = ""
     for new_text in streamer:
-        full_output += new_text
         buffer += new_text.replace("<|im_end|>", "")
-        yield buffer
+        yield buffer, buffer
 
     # SmolDocling-256M specific postprocessing
     if model_name == "SmolDocling-256M-preview":
-        cleaned_output = full_output.replace("<end_of_utterance>", "").strip()
+        cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
         if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
             if "<chart>" in cleaned_output:
                 cleaned_output = cleaned_output.replace("<chart>", "<otsl>").replace("</chart>", "</otsl>")
@@ -208,9 +204,9 @@ def generate_image(model_name: str, text: str, image: Image.Image,
             doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([cleaned_output], images)
             doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
             markdown_output = doc.export_to_markdown()
-            yield f"**MD Output:**\n\n{markdown_output}"
+            yield buffer, markdown_output
         else:
-            yield cleaned_output
+            yield buffer, cleaned_output
 
 @spaces.GPU
 def generate_video(model_name: str, text: str, video_path: str,
@@ -234,11 +230,11 @@ def generate_video(model_name: str, text: str, video_path: str,
         processor = processor_l
         model = model_l
     else:
-        yield "Invalid model selected."
+        yield "Invalid model selected.", "Invalid model selected."
         return
 
     if video_path is None:
-        yield "Please upload a video."
+        yield "Please upload a video.", "Please upload a video."
         return
 
     # Extract frames from video
@@ -278,17 +274,15 @@ def generate_video(model_name: str, text: str, video_path: str,
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
-    # Stream output and collect full response
+    # Stream output
     buffer = ""
-    full_output = ""
     for new_text in streamer:
-        full_output += new_text
         buffer += new_text.replace("<|im_end|>", "")
-        yield buffer
+        yield buffer, buffer
 
     # SmolDocling-256M specific postprocessing
     if model_name == "SmolDocling-256M-preview":
-        cleaned_output = full_output.replace("<end_of_utterance>", "").strip()
+        cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
         if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
             if "<chart>" in cleaned_output:
                 cleaned_output = cleaned_output.replace("<chart>", "<otsl>").replace("</chart>", "</otsl>")
@@ -296,12 +290,13 @@ def generate_video(model_name: str, text: str, video_path: str,
             doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([cleaned_output], images)
             doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
             markdown_output = doc.export_to_markdown()
-            yield f"**MD Output:**\n\n{markdown_output}"
+            yield buffer, markdown_output
         else:
-            yield cleaned_output
+            yield buffer, cleaned_output
 
 # Define examples for image and video inference
 image_examples = [
+    ["Reconstruct the doc [table] as it is.", "images/0.png"],
     ["OCR the image", "images/2.jpg"],
     ["Convert this page to docling", "images/1.png"],
     ["Convert this page to docling", "images/3.png"],
@@ -316,6 +311,7 @@ video_examples = [
     ["Explain the video in detail.", "videos/2.mp4"]
 ]
 
+# Updated CSS to include styling for the Result Canvas
 css = """
 .submit-btn {
     background-color: #2980b9 !important;
@@ -323,6 +319,11 @@ css = """
 }
 .submit-btn:hover {
     background-color: #3498db !important;
+}
+.canvas-output {
+    border: 2px solid #4682B4;
+    border-radius: 10px;
+    padding: 20px;
 }
 """
 
@@ -355,28 +356,35 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
                 top_k = gr.Slider(label="Top-k", minimum=1, maximum=1000, step=1, value=50)
                 repetition_penalty = gr.Slider(label="Repetition penalty", minimum=1.0, maximum=2.0, step=0.05, value=1.2)
         with gr.Column():
-            output = gr.Textbox(label="Output", interactive=False, lines=3, scale=2)
+            # Result Canvas with raw and formatted outputs
+            with gr.Column(elem_classes="canvas-output"):
+                gr.Markdown("## Result.Md")
+                raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=2)
+                formatted_output = gr.Markdown(label="Formatted Result (Result.Md)")
+            
             model_choice = gr.Radio(
-                choices=["SmolDocling-256M-preview", "Nanonets-OCR-s", "MonkeyOCR-Recognition", "Typhoon-OCR-7B"],
+                choices=["Nanonets-OCR-s", "MonkeyOCR-Recognition", "SmolDocling-256M-preview", "Typhoon-OCR-7B"],
                 label="Select Model",
                 value="Nanonets-OCR-s"
             )
             
-            gr.Markdown("**Model Info 💻**")
-            gr.Markdown("> [SmolDocling-256M](https://huggingface.co/ds4sd/SmolDocling-256M-preview): SmolDocling is a multimodal Image-Text-to-Text model designed for efficient document conversion. It retains Docling's most popular features while ensuring full compatibility with Docling through seamless support for DoclingDocuments.")
+            gr.Markdown("**Model Info 💻** | [Report Bug](https://huggingface.co/spaces/prithivMLmods/Multimodal-OCR2/discussions)")
             gr.Markdown("> [Nanonets-OCR-s](https://huggingface.co/nanonets/Nanonets-OCR-s): nanonets-ocr-s is a powerful, state-of-the-art image-to-markdown ocr model that goes far beyond traditional text extraction. it transforms documents into structured markdown with intelligent content recognition and semantic tagging.")
+            gr.Markdown("> [SmolDocling-256M](https://huggingface.co/ds4sd/SmolDocling-256M-preview): SmolDocling is a multimodal Image-Text-to-Text model designed for efficient document conversion. It retains Docling's most popular features while ensuring full compatibility with Docling through seamless support for DoclingDocuments.")
             gr.Markdown("> [MonkeyOCR-Recognition](https://huggingface.co/echo840/MonkeyOCR): MonkeyOCR adopts a Structure-Recognition-Relation (SRR) triplet paradigm, which simplifies the multi-tool pipeline of modular approaches while avoiding the inefficiency of using large multimodal models for full-page document processing.")
             gr.Markdown("> [Typhoon-OCR-7B](https://huggingface.co/scb10x/typhoon-ocr-7b): A bilingual document parsing model built specifically for real-world documents in Thai and English inspired by models like olmOCR based on Qwen2.5-VL-Instruction. Extracts and interprets embedded text (e.g., chart labels, captions) in Thai or English.")
-    
+            gr.Markdown(">⚠️note: all the models in space are not guaranteed to perform well in video inference use cases.")  
+            
+    # Connect submit buttons to generation functions with both outputs
     image_submit.click(
         fn=generate_image,
         inputs=[model_choice, image_query, image_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
-        outputs=output
+        outputs=[raw_output, formatted_output]
     )
     video_submit.click(
         fn=generate_video,
         inputs=[model_choice, video_query, video_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
-        outputs=output
+        outputs=[raw_output, formatted_output]
     )
 
 if __name__ == "__main__":
