@@ -44,6 +44,7 @@ model_m = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     torch_dtype=torch.float16
 ).to(device).eval()
 
+#-----------------------------subfolder-----------------------------#
 # Load MonkeyOCR
 MODEL_ID_G = "echo840/MonkeyOCR"
 SUBFOLDER = "Recognition"
@@ -58,6 +59,7 @@ model_g = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     subfolder=SUBFOLDER,
     torch_dtype=torch.float16
 ).to(device).eval()
+#-----------------------------subfolder-----------------------------#
 
 # Load Typhoon-OCR-7B
 MODEL_ID_L = "scb10x/typhoon-ocr-7b"
@@ -355,12 +357,15 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
                 top_p = gr.Slider(label="Top-p (nucleus sampling)", minimum=0.05, maximum=1.0, step=0.05, value=0.9)
                 top_k = gr.Slider(label="Top-k", minimum=1, maximum=1000, step=1, value=50)
                 repetition_penalty = gr.Slider(label="Repetition penalty", minimum=1.0, maximum=2.0, step=0.05, value=1.2)
+                
         with gr.Column():
             # Result Canvas with raw and formatted outputs
             with gr.Column(elem_classes="canvas-output"):
-                gr.Markdown("## Result.Md")
+                gr.Markdown("## Result.md")
                 raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=2)
-                formatted_output = gr.Markdown(label="Formatted Result (Result.Md)")
+                
+                with gr.Accordion("Formatted Result (Result.Md)", open=False):
+                    formatted_output = gr.Markdown(label="Formatted Result (Result.md)")
             
             model_choice = gr.Radio(
                 choices=["Nanonets-OCR-s", "MonkeyOCR-Recognition", "SmolDocling-256M-preview", "Typhoon-OCR-7B"],
