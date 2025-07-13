@@ -361,11 +361,11 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
         with gr.Column():
             # Result Canvas with raw and formatted outputs
             with gr.Column(elem_classes="canvas-output"):
-                gr.Markdown("## Result.md")
+                gr.Markdown("## Output")
                 raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=2)
                 
-                with gr.Accordion("Formatted Result (Result.Md)", open=False):
-                    formatted_output = gr.Markdown(label="Formatted Result (Result.md)")
+                with gr.Accordion("(Result.md)", open=False):
+                    formatted_output = gr.Markdown(label="(Result.md)")
             
             model_choice = gr.Radio(
                 choices=["Nanonets-OCR-s", "MonkeyOCR-Recognition", "SmolDocling-256M-preview", "Typhoon-OCR-7B"],
