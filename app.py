@@ -44,7 +44,6 @@ model_m = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     torch_dtype=torch.float16
 ).to(device).eval()
 
-#-----------------------------subfolder-----------------------------#
 # Load MonkeyOCR
 MODEL_ID_G = "echo840/MonkeyOCR"
 SUBFOLDER = "Recognition"
@@ -59,7 +58,6 @@ model_g = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     subfolder=SUBFOLDER,
     torch_dtype=torch.float16
 ).to(device).eval()
-#-----------------------------subfolder-----------------------------#
 
 # Load Typhoon-OCR-7B
 MODEL_ID_L = "scb10x/typhoon-ocr-7b"
@@ -133,7 +131,6 @@ def generate_image(model_name: str, text: str, image: Image.Image,
                    top_k: int = 50,
                    repetition_penalty: float = 1.2):
     """Generate responses for image input using the selected model."""
-    # Model selection
     if model_name == "Nanonets-OCR-s":
         processor = processor_m
         model = model_m
@@ -154,17 +151,14 @@ def generate_image(model_name: str, text: str, image: Image.Image,
         yield "Please upload an image.", "Please upload an image."
         return
 
-    # Prepare images as a list (single image for image inference)
     images = [image]
 
-    # SmolDocling-256M specific preprocessing
     if model_name == "SmolDocling-256M-preview":
         if "OTSL" in text or "code" in text:
             images = [add_random_padding(img) for img in images]
         if "OCR at text at" in text or "Identify element" in text or "formula" in text:
             text = normalize_values(text, target_max=500)
 
-    # Unified message structure for all models
     messages = [
         {
             "role": "user",
@@ -176,7 +170,6 @@ def generate_image(model_name: str, text: str, image: Image.Image,
     prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
     inputs = processor(text=prompt, images=images, return_tensors="pt").to(device)
 
-    # Generation with streaming
     streamer = TextIteratorStreamer(processor, skip_prompt=True, skip_special_tokens=True)
     generation_kwargs = {
         **inputs,
@@ -190,13 +183,11 @@ def generate_image(model_name: str, text: str, image: Image.Image,
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
-    # Stream output
     buffer = ""
     for new_text in streamer:
         buffer += new_text.replace("<|im_end|>", "")
         yield buffer, buffer
 
-    # SmolDocling-256M specific postprocessing
     if model_name == "SmolDocling-256M-preview":
         cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
         if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
@@ -218,7 +209,6 @@ def generate_video(model_name: str, text: str, video_path: str,
                    top_k: int = 50,
                    repetition_penalty: float = 1.2):
     """Generate responses for video input using the selected model."""
-    # Model selection
     if model_name == "Nanonets-OCR-s":
         processor = processor_m
         model = model_m
@@ -239,18 +229,15 @@ def generate_video(model_name: str, text: str, video_path: str,
         yield "Please upload a video.", "Please upload a video."
         return
 
-    # Extract frames from video
     frames = downsample_video(video_path)
     images = [frame for frame, _ in frames]
 
-    # SmolDocling-256M specific preprocessing
     if model_name == "SmolDocling-256M-preview":
         if "OTSL" in text or "code" in text:
             images = [add_random_padding(img) for img in images]
         if "OCR at text at" in text or "Identify element" in text or "formula" in text:
             text = normalize_values(text, target_max=500)
 
-    # Unified message structure for all models
     messages = [
         {
             "role": "user",
@@ -262,7 +249,6 @@ def generate_video(model_name: str, text: str, video_path: str,
     prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
     inputs = processor(text=prompt, images=images, return_tensors="pt").to(device)
 
-    # Generation with streaming
     streamer = TextIteratorStreamer(processor, skip_prompt=True, skip_special_tokens=True)
     generation_kwargs = {
         **inputs,
@@ -276,13 +262,11 @@ def generate_video(model_name: str, text: str, video_path: str,
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
-    # Stream output
     buffer = ""
     for new_text in streamer:
         buffer += new_text.replace("<|im_end|>", "")
         yield buffer, buffer
 
-    # SmolDocling-256M specific postprocessing
     if model_name == "SmolDocling-256M-preview":
         cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
         if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
@@ -313,15 +297,55 @@ video_examples = [
     ["Explain the video in detail.", "videos/2.mp4"]
 ]
 
-# Updated CSS to include styling for the Result Canvas
+# Updated CSS with the new submit button theme
 css = """
 .submit-btn {
-    background-color: #2980b9 !important;
-    color: white !important;
+  --clr-font-main: hsla(0 0% 20% / 100);
+  --btn-bg-1: hsla(194 100% 69% / 1);
+  --btn-bg-2: hsla(217 100% 56% / 1);
+  --btn-bg-color: hsla(360 100% 100% / 1);
+  --radii: 0.5em;
+  cursor: pointer;
+  padding: 0.9em 1.4em;
+  min-width: 120px;
+  min-height: 44px;
+  font-size: var(--size, 1rem);
+  font-weight: 500;
+  transition: 0.8s;
+  background-size: 280% auto;
+  background-image: linear-gradient(
+    325deg,
+    var(--btn-bg-2) 0%,
+    var(--btn-bg-1) 55%,
+    var(--btn-bg-2) 90%
+  );
+  border: none;
+  border-radius: var(--radii);
+  color: var(--btn-bg-color);
+  box-shadow:
+    0px 0px 20px rgba(71, 184, 255, 0.5),
+    0px 5px 5px -1px rgba(58, 125, 233, 0.25),
+    inset 4px 4px 8px rgba(175, 230, 255, 0.5),
+    inset -4px -4px 8px rgba(19, 95, 216, 0.35);
 }
+
 .submit-btn:hover {
-    background-color: #3498db !important;
+  background-position: right top;
 }
+
+.submit-btn:is(:focus, :focus-visible, :active) {
+  outline: none;
+  box-shadow:
+    0 0 0 3px var(--btn-bg-color),
+    0 0 0 6px var(--btn-bg-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submit-btn {
+    transition: linear;
+  }
+}
+
 .canvas-output {
     border: 2px solid #4682B4;
     border-radius: 10px;
@@ -359,7 +383,6 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
                 repetition_penalty = gr.Slider(label="Repetition penalty", minimum=1.0, maximum=2.0, step=0.05, value=1.2)
                 
         with gr.Column():
-            # Result Canvas with raw and formatted outputs
             with gr.Column(elem_classes="canvas-output"):
                 gr.Markdown("## Output")
                 raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=2)
@@ -380,7 +403,6 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
             gr.Markdown("> [Typhoon-OCR-7B](https://huggingface.co/scb10x/typhoon-ocr-7b): A bilingual document parsing model built specifically for real-world documents in Thai and English inspired by models like olmOCR based on Qwen2.5-VL-Instruction. Extracts and interprets embedded text (e.g., chart labels, captions) in Thai or English.")
             gr.Markdown(">⚠️note: all the models in space are not guaranteed to perform well in video inference use cases.")  
             
-    # Connect submit buttons to generation functions with both outputs
     image_submit.click(
         fn=generate_image,
         inputs=[model_choice, image_query, image_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
