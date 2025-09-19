@@ -16,6 +16,7 @@ import cv2
 from transformers import (
     Qwen2VLForConditionalGeneration,
     Qwen2_5_VLForConditionalGeneration,
+    AutoModelForCausalLM,
     AutoModelForVision2Seq,
     AutoProcessor,
     TextIteratorStreamer,
@@ -29,8 +30,8 @@ import ast
 import html
 
 # Constants for text generation
-MAX_MAX_NEW_TOKENS = 2048
-DEFAULT_MAX_NEW_TOKENS = 1024
+MAX_MAX_NEW_TOKENS = 5120
+DEFAULT_MAX_NEW_TOKENS = 3072
 MAX_INPUT_TOKEN_LENGTH = int(os.getenv("MAX_INPUT_TOKEN_LENGTH", "4096"))
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -73,6 +74,15 @@ MODEL_ID_X = "ds4sd/SmolDocling-256M-preview"
 processor_x = AutoProcessor.from_pretrained(MODEL_ID_X, trust_remote_code=True)
 model_x = AutoModelForVision2Seq.from_pretrained(
     MODEL_ID_X,
+    trust_remote_code=True,
+    torch_dtype=torch.float16
+).to(device).eval()
+
+# Thyme-RL
+MODEL_ID_N = "Kwai-Keye/Thyme-RL"
+processor_n = AutoProcessor.from_pretrained(MODEL_ID_N, trust_remote_code=True)
+model_n = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+    MODEL_ID_N,
     trust_remote_code=True,
     torch_dtype=torch.float16
 ).to(device).eval()
@@ -143,6 +153,9 @@ def generate_image(model_name: str, text: str, image: Image.Image,
     elif model_name == "Typhoon-OCR-7B":
         processor = processor_l
         model = model_l
+    elif model_name == "Thyme-RL":
+        processor = processor_n
+        model = model_n
     else:
         yield "Invalid model selected.", "Invalid model selected."
         return
@@ -221,6 +234,9 @@ def generate_video(model_name: str, text: str, video_path: str,
     elif model_name == "Typhoon-OCR-7B":
         processor = processor_l
         model = model_l
+    elif model_name == "Thyme-RL":
+        processor = processor_n
+        model = model_n
     else:
         yield "Invalid model selected.", "Invalid model selected."
         return
@@ -283,6 +299,7 @@ def generate_video(model_name: str, text: str, video_path: str,
 # Define examples for image and video inference
 image_examples = [
     ["Reconstruct the doc [table] as it is.", "images/0.png"],
+    ["Describe the image!", "images/8.png"],
     ["OCR the image", "images/2.jpg"],
     ["Convert this page to docling", "images/1.png"],
     ["Convert this page to docling", "images/3.png"],
@@ -297,55 +314,15 @@ video_examples = [
     ["Explain the video in detail.", "videos/2.mp4"]
 ]
 
-# Updated CSS with the new submit button theme
+#css
 css = """
 .submit-btn {
-  --clr-font-main: hsla(0 0% 20% / 100);
-  --btn-bg-1: hsla(194 100% 69% / 1);
-  --btn-bg-2: hsla(217 100% 56% / 1);
-  --btn-bg-color: hsla(360 100% 100% / 1);
-  --radii: 0.5em;
-  cursor: pointer;
-  padding: 0.9em 1.4em;
-  min-width: 120px;
-  min-height: 44px;
-  font-size: var(--size, 1rem);
-  font-weight: 500;
-  transition: 0.8s;
-  background-size: 280% auto;
-  background-image: linear-gradient(
-    325deg,
-    var(--btn-bg-2) 0%,
-    var(--btn-bg-1) 55%,
-    var(--btn-bg-2) 90%
-  );
-  border: none;
-  border-radius: var(--radii);
-  color: var(--btn-bg-color);
-  box-shadow:
-    0px 0px 20px rgba(71, 184, 255, 0.5),
-    0px 5px 5px -1px rgba(58, 125, 233, 0.25),
-    inset 4px 4px 8px rgba(175, 230, 255, 0.5),
-    inset -4px -4px 8px rgba(19, 95, 216, 0.35);
+    background-color: #2980b9 !important;
+    color: white !important;
 }
-
 .submit-btn:hover {
-  background-position: right top;
+    background-color: #3498db !important;
 }
-
-.submit-btn:is(:focus, :focus-visible, :active) {
-  outline: none;
-  box-shadow:
-    0 0 0 3px var(--btn-bg-color),
-    0 0 0 6px var(--btn-bg-2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .submit-btn {
-    transition: linear;
-  }
-}
-
 .canvas-output {
     border: 2px solid #4682B4;
     border-radius: 10px;
@@ -361,7 +338,7 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
             with gr.Tabs():
                 with gr.TabItem("Image Inference"):
                     image_query = gr.Textbox(label="Query Input", placeholder="Enter your query here...")
-                    image_upload = gr.Image(type="pil", label="Image")
+                    image_upload = gr.Image(type="pil", label="Image", height=290)
                     image_submit = gr.Button("Submit", elem_classes="submit-btn")
                     gr.Examples(
                         examples=image_examples,
@@ -369,7 +346,7 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
                     )
                 with gr.TabItem("Video Inference"):
                     video_query = gr.Textbox(label="Query Input", placeholder="Enter your query here...")
-                    video_upload = gr.Video(label="Video")
+                    video_upload = gr.Video(label="Video", height=290)
                     video_submit = gr.Button("Submit", elem_classes="submit-btn")
                     gr.Examples(
                         examples=video_examples,
@@ -385,13 +362,13 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
         with gr.Column():
             with gr.Column(elem_classes="canvas-output"):
                 gr.Markdown("## Output")
-                raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=2)
+                raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=5)
                 
                 with gr.Accordion("(Result.md)", open=False):
                     formatted_output = gr.Markdown(label="(Result.md)")
             
             model_choice = gr.Radio(
-                choices=["Nanonets-OCR-s", "MonkeyOCR-Recognition", "SmolDocling-256M-preview", "Typhoon-OCR-7B"],
+                choices=["Nanonets-OCR-s", "MonkeyOCR-Recognition", "Thyme-RL", "Typhoon-OCR-7B", "SmolDocling-256M-preview"],
                 label="Select Model",
                 value="Nanonets-OCR-s"
             )
@@ -401,6 +378,7 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
             gr.Markdown("> [SmolDocling-256M](https://huggingface.co/ds4sd/SmolDocling-256M-preview): SmolDocling is a multimodal Image-Text-to-Text model designed for efficient document conversion. It retains Docling's most popular features while ensuring full compatibility with Docling through seamless support for DoclingDocuments.")
             gr.Markdown("> [MonkeyOCR-Recognition](https://huggingface.co/echo840/MonkeyOCR): MonkeyOCR adopts a Structure-Recognition-Relation (SRR) triplet paradigm, which simplifies the multi-tool pipeline of modular approaches while avoiding the inefficiency of using large multimodal models for full-page document processing.")
             gr.Markdown("> [Typhoon-OCR-7B](https://huggingface.co/scb10x/typhoon-ocr-7b): A bilingual document parsing model built specifically for real-world documents in Thai and English inspired by models like olmOCR based on Qwen2.5-VL-Instruction. Extracts and interprets embedded text (e.g., chart labels, captions) in Thai or English.")
+            gr.Markdown("> [Thyme-RL](https://huggingface.co/Kwai-Keye/Thyme-RL): Thyme: Think Beyond Images. Thyme transcends traditional ``thinking with images'' paradigms by autonomously generating and executing diverse image processing and computational operations through executable code, significantly enhancing performance on high-resolution perception and complex reasoning tasks.")
             gr.Markdown(">⚠️note: all the models in space are not guaranteed to perform well in video inference use cases.")  
             
     image_submit.click(
@@ -411,8 +389,9 @@ with gr.Blocks(css=css, theme="bethecloud/storj_theme") as demo:
     video_submit.click(
         fn=generate_video,
         inputs=[model_choice, video_query, video_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
-        outputs=[raw_output, formatted_output]
+        outputs=[raw_output, 
+                 formatted_output]
     )
 
 if __name__ == "__main__":
-    demo.queue(max_size=40).launch(share=True, mcp_server=True, ssr_mode=False, show_error=True)
+    demo.queue(max_size=50).launch(share=True, mcp_server=True, ssr_mode=False, show_error=True)
