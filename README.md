@@ -1,5 +1,7 @@
 # **Multimodal-OCR2**
 
+<img width="1772" height="1213" alt="Screenshot 2025-10-16 at 11-13-37 OCR2 - a Hugging Face Space by prithivMLmods" src="https://github.com/user-attachments/assets/c39d0661-98ea-4990-9d1c-bc00b4bc376d" />
+
 A comprehensive multimodal OCR application that supports both image and video document processing using state-of-the-art vision-language models. This application provides an intuitive Gradio interface for extracting text, converting documents to markdown, and performing advanced document analysis.
 
 > [!note]
