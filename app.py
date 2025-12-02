@@ -10,9 +10,7 @@ from typing import Iterable
 import gradio as gr
 import spaces
 import torch
-import numpy as np
 from PIL import Image, ImageOps
-import cv2
 import requests
 
 from transformers import (
@@ -107,8 +105,8 @@ css = """
 """
 
 # Constants for text generation
-MAX_MAX_NEW_TOKENS = 5120
-DEFAULT_MAX_NEW_TOKENS = 3072
+MAX_MAX_NEW_TOKENS = 4096
+DEFAULT_MAX_NEW_TOKENS = 2048
 MAX_INPUT_TOKEN_LENGTH = int(os.getenv("MAX_INPUT_TOKEN_LENGTH", "4096"))
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -118,6 +116,7 @@ MODEL_ID_M = "nanonets/Nanonets-OCR-s"
 processor_m = AutoProcessor.from_pretrained(MODEL_ID_M, trust_remote_code=True)
 model_m = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     MODEL_ID_M,
+    attn_implementation="flash_attention_2",
     trust_remote_code=True,
     torch_dtype=torch.float16
 ).to(device).eval()
@@ -132,6 +131,7 @@ processor_g = AutoProcessor.from_pretrained(
 )
 model_g = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     MODEL_ID_G,
+    attn_implementation="flash_attention_2",
     trust_remote_code=True,
     subfolder=SUBFOLDER,
     torch_dtype=torch.float16
@@ -142,6 +142,7 @@ MODEL_ID_L = "scb10x/typhoon-ocr-7b"
 processor_l = AutoProcessor.from_pretrained(MODEL_ID_L, trust_remote_code=True)
 model_l = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     MODEL_ID_L,
+    attn_implementation="flash_attention_2",
     trust_remote_code=True,
     torch_dtype=torch.float16
 ).to(device).eval()
@@ -160,6 +161,7 @@ MODEL_ID_N = "Kwai-Keye/Thyme-RL"
 processor_n = AutoProcessor.from_pretrained(MODEL_ID_N, trust_remote_code=True)
 model_n = Qwen2_5_VLForConditionalGeneration.from_pretrained(
     MODEL_ID_N,
+    attn_implementation="flash_attention_2",
     trust_remote_code=True,
     torch_dtype=torch.float16
 ).to(device).eval()
@@ -191,24 +193,6 @@ def normalize_values(text, target_max=500):
     pattern = r"\[([\d\.\s,]+)\]"
     normalized_text = re.sub(pattern, process_match, text)
     return normalized_text
-
-def downsample_video(video_path):
-    """Downsample a video to evenly spaced frames, returning PIL images with timestamps."""
-    vidcap = cv2.VideoCapture(video_path)
-    total_frames = int(vidcap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = vidcap.get(cv2.CAP_PROP_FPS)
-    frames = []
-    frame_indices = np.linspace(0, total_frames - 1, min(total_frames, 10), dtype=int)
-    for i in frame_indices:
-        vidcap.set(cv2.CAP_PROP_POS_FRAMES, i)
-        success, image = vidcap.read()
-        if success:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            pil_image = Image.fromarray(image)
-            timestamp = round(i / fps, 2)
-            frames.append((pil_image, timestamp))
-    vidcap.release()
-    return frames
 
 @spaces.GPU
 def generate_image(model_name: str, text: str, image: Image.Image,
@@ -286,117 +270,24 @@ def generate_image(model_name: str, text: str, image: Image.Image,
         else:
             yield buffer, cleaned_output
 
-@spaces.GPU
-def generate_video(model_name: str, text: str, video_path: str,
-                   max_new_tokens: int = 1024,
-                   temperature: float = 0.6,
-                   top_p: float = 0.9,
-                   top_k: int = 50,
-                   repetition_penalty: float = 1.2):
-    """Generate responses for video input using the selected model."""
-    if model_name == "Nanonets-OCR-s":
-        processor, model = processor_m, model_m
-    elif model_name == "MonkeyOCR-Recognition":
-        processor, model = processor_g, model_g
-    elif model_name == "SmolDocling-256M-preview":
-        processor, model = processor_x, model_x
-    elif model_name == "Typhoon-OCR-7B":
-        processor, model = processor_l, model_l
-    elif model_name == "Thyme-RL":
-        processor, model = processor_n, model_n
-    else:
-        yield "Invalid model selected.", "Invalid model selected."
-        return
-
-    if video_path is None:
-        yield "Please upload a video.", "Please upload a video."
-        return
-
-    frames = downsample_video(video_path)
-    images = [frame for frame, _ in frames]
-
-    if model_name == "SmolDocling-256M-preview":
-        if "OTSL" in text or "code" in text:
-            images = [add_random_padding(img) for img in images]
-        if "OCR at text at" in text or "Identify element" in text or "formula" in text:
-            text = normalize_values(text, target_max=500)
-
-    messages = [
-        {
-            "role": "user",
-            "content": [{"type": "image"} for _ in images] + [
-                {"type": "text", "text": text}
-            ]
-        }
-    ]
-    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = processor(text=prompt, images=images, return_tensors="pt").to(device)
-
-    streamer = TextIteratorStreamer(processor, skip_prompt=True, skip_special_tokens=True)
-    generation_kwargs = {
-        **inputs,
-        "streamer": streamer,
-        "max_new_tokens": max_new_tokens,
-        "temperature": temperature,
-        "top_p": top_p,
-        "top_k": top_k,
-        "repetition_penalty": repetition_penalty,
-    }
-    thread = Thread(target=model.generate, kwargs=generation_kwargs)
-    thread.start()
-
-    buffer = ""
-    for new_text in streamer:
-        buffer += new_text.replace("<|im_end|>", "")
-        yield buffer, buffer
-
-    if model_name == "SmolDocling-256M-preview":
-        cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
-        if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
-            if "<chart>" in cleaned_output:
-                cleaned_output = cleaned_output.replace("<chart>", "<otsl>").replace("</chart>", "</otsl>")
-                cleaned_output = re.sub(r'(<loc_500>)(?!.*<loc_500>)<[^>]+>', r'\1', cleaned_output)
-            doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([cleaned_output], images)
-            doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
-            markdown_output = doc.export_to_markdown()
-            yield buffer, markdown_output
-        else:
-            yield buffer, cleaned_output
-
-# Define examples for image and video inference
+# Define examples for image inference
 image_examples = [
-    ["Reconstruct the doc [table] as it is.", "images/0.png"],
-    ["Describe the image!", "images/8.png"],
-    ["OCR the image", "images/2.jpg"],
-    ["Convert this page to docling", "images/1.png"],
-    ["Convert this page to docling", "images/3.png"],
-    ["Convert chart to OTSL.", "images/4.png"],
-    ["Convert code to text", "images/5.jpg"],
-    ["Convert this table to OTSL.", "images/6.jpg"],
-    ["Convert formula to late.", "images/7.jpg"],
+    ["Perform OCR on the image precisely.", "examples/5.jpg"],
+    ["Run OCR on the image and ensure high accuracy.", "examples/4.jpg"],
+    ["Conduct OCR on the image with exact text recognition.", "examples/2.jpg"],
+    ["Perform precise OCR extraction on the image.", "examples/1.jpg"],
+    ["Convert this page to docling", "examples/3.jpg"],
 ]
 
-video_examples = [
-    ["Explain the video in detail.", "videos/1.mp4"],
-    ["Explain the video in detail.", "videos/2.mp4"]
-]
-
-# Create the Gradio Interface
-with gr.Blocks(css=css, theme=steel_blue_theme) as demo:
+with gr.Blocks() as demo:
     gr.Markdown("# **Multimodal OCR2**", elem_id="main-title")
     with gr.Row():
         with gr.Column(scale=2):
-            with gr.Tabs():
-                with gr.TabItem("Image Inference"):
-                    image_query = gr.Textbox(label="Query Input", placeholder="Enter your query here...")
-                    image_upload = gr.Image(type="pil", label="Upload Image", height=290)
-                    image_submit = gr.Button("Submit", variant="primary")
-                    gr.Examples(examples=image_examples, inputs=[image_query, image_upload])
-                with gr.TabItem("Video Inference"):
-                    video_query = gr.Textbox(label="Query Input", placeholder="Enter your query here...")
-                    video_upload = gr.Video(label="Upload Video (<= 30s)", height=290)
-                    video_submit = gr.Button("Submit", variant="primary")
-                    gr.Examples(examples=video_examples, inputs=[video_query, video_upload])
+            image_query = gr.Textbox(label="Query Input", placeholder="Enter your query here...")
+            image_upload = gr.Image(type="pil", label="Upload Image", height=290)
+            image_submit = gr.Button("Submit", variant="primary")
+            gr.Examples(examples=image_examples, inputs=[image_query, image_upload])
+
             with gr.Accordion("Advanced options", open=False):
                 max_new_tokens = gr.Slider(label="Max new tokens", minimum=1, maximum=MAX_MAX_NEW_TOKENS, step=1, value=DEFAULT_MAX_NEW_TOKENS)
                 temperature = gr.Slider(label="Temperature", minimum=0.1, maximum=4.0, step=0.1, value=0.6)
@@ -406,7 +297,7 @@ with gr.Blocks(css=css, theme=steel_blue_theme) as demo:
                 
         with gr.Column(scale=3):
             gr.Markdown("## Output", elem_id="output-title")
-            raw_output = gr.Textbox(label="Raw Output Stream", interactive=False, lines=11, show_copy_button=True)
+            raw_output = gr.Textbox(label="Raw Output Stream", interactive=True, lines=11)
             with gr.Accordion("(Result.md)", open=False):
                 formatted_output = gr.Markdown(label="(Result.md)")
             
@@ -421,11 +312,6 @@ with gr.Blocks(css=css, theme=steel_blue_theme) as demo:
         inputs=[model_choice, image_query, image_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
         outputs=[raw_output, formatted_output]
     )
-    video_submit.click(
-        fn=generate_video,
-        inputs=[model_choice, video_query, video_upload, max_new_tokens, temperature, top_p, top_k, repetition_penalty],
-        outputs=[raw_output, formatted_output]
-    )
 
 if __name__ == "__main__":
-    demo.queue(max_size=50).launch(mcp_server=True, ssr_mode=False, show_error=True)
+    demo.queue(max_size=30).launch(css=css, theme=steel_blue_theme, mcp_server=True, ssr_mode=False)
