@@ -1,174 +1,79 @@
 # **Multimodal-OCR2**
 
-<img width="1772" height="1213" alt="Screenshot 2025-10-16 at 11-13-37 OCR2 - a Hugging Face Space by prithivMLmods" src="https://github.com/user-attachments/assets/c39d0661-98ea-4990-9d1c-bc00b4bc376d" />
+Multimodal-OCR2 is an advanced, experimental optical character recognition and document analysis suite designed to extract high-fidelity text, reconstruct complex document layouts, and generate structured markdown from diverse visual inputs. Built around a versatile collection of state-of-the-art vision-language models—including architectures based on Qwen2.5-VL, Qwen3-VL, and specialized document parsers like SmolDocling—this application excels at handling dense documents, multilingual texts, and real-world scene text. The suite features a custom-built, interactive web interface that allows users to seamlessly process standard documents, receipts, and screenshots. With built-in support for advanced parsing techniques (such as Docling integration for structured markdown export) and fully GPU-accelerated inference, Multimodal-OCR2 provides developers and researchers with a powerful environment for testing and refining next-generation document intelligence workflows.
 
-A comprehensive multimodal OCR application that supports both image and video document processing using state-of-the-art vision-language models. This application provides an intuitive Gradio interface for extracting text, converting documents to markdown, and performing advanced document analysis.
+<img width="1920" height="1797" alt="Screenshot 2026-03-22 at 12-29-30 Multimodal OCR2 - a Hugging Face Space by prithivMLmods" src="https://github.com/user-attachments/assets/386f9d7f-7377-44d5-b9c9-514c0640564f" />
 
-> [!note]
-Demo here : https://huggingface.co/spaces/prithivMLmods/Multimodal-OCR2
+### **Key Features**
 
-## Features
+* **Multi-Model Architecture:** Seamlessly switch between specialized vision-language models directly from the interface. Supported models include `FireRed-OCR`, `Nanonets-OCR-s`, `MonkeyOCR-Recognition`, `Thyme-RL`, `Typhoon-OCR-7B`, and `SmolDocling-256M-preview`.
+* **Advanced Document Parsing:** Specialized integration with SmolDocling allows for deep document understanding, translating visual elements like charts, code blocks, and tables directly into structured Markdown output.
+* **Custom User Interface:** Features a bespoke, responsive Gradio frontend built with custom HTML, CSS, and JavaScript. It includes a drag-and-drop media zone, real-time output streaming, and an integrated settings panel.
+* **Granular Inference Controls:** Fine-tune the AI's output by adjusting generation parameters such as Maximum New Tokens, Temperature, Top-p, Top-k, and Repetition Penalty.
+* **Output Management:** Built-in actions allow users to instantly copy the raw output text to their clipboard or save the generated response directly as a `.txt` file.
 
-- **Multiple Model Support**: Choose from 4 different OCR models optimized for various use cases
-- **Image Processing**: Extract text and convert documents from images
-- **Video Processing**: Process video content with OCR capabilities
-- **Document Conversion**: Convert documents to structured markdown format
-- **Real-time Streaming**: Get results as they are generated
-- **Advanced Configuration**: Fine-tune generation parameters for optimal results
+### **Repository Structure**
 
-## Supported Models
-
-### SmolDocling-256M-preview
-A multimodal Image-Text-to-Text model designed for efficient document conversion. Retains Docling's most popular features while ensuring full compatibility with Docling through seamless support for DoclingDocuments.
-
-### Nanonets-OCR-s
-A powerful, state-of-the-art image-to-markdown OCR model that goes far beyond traditional text extraction. It transforms documents into structured markdown with intelligent content recognition and semantic tagging.
-
-### MonkeyOCR-Recognition
-Adopts a Structure-Recognition-Relation (SRR) triplet paradigm, which simplifies the multi-tool pipeline of modular approaches while avoiding the inefficiency of using large multimodal models for full-page document processing.
-
-### Typhoon-OCR-7B
-A bilingual document parsing model built specifically for real-world documents in Thai and English. Extracts and interprets embedded text including chart labels and captions in both languages.
-
-
-## Image / Video Inference Demo
-
-![Screenshot 2025-06-20 at 12-51-03 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/1448dc30-0f9c-4635-900b-b49d4baf3971)
-
----
-
-![Screenshot 2025-06-20 at 12-49-32 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/5e2d066c-7e38-4b3f-8bc2-d0cfdbc1e682)
-
----
-![Screenshot 2025-06-20 at 12-52-08 OCR2 - a Hugging Face Space by prithivMLmods](https://github.com/user-attachments/assets/404899f4-14e0-4027-aaac-4c54fdeb3f2a)
-
----
-
-https://github.com/user-attachments/assets/1df2349d-ecf1-43bc-adbf-3e4f9c3cc708
-
----
-
-https://github.com/user-attachments/assets/f127606c-4d0b-468e-b7be-d124d2f9ee2b
-
----
-
-## Installation
-
-1. Clone the repository:
-```bash
-git clone https://github.com/PRITHIVSAKTHIUR/Multimodal-OCR2.git
-cd Multimodal-OCR2
+```text
+├── examples/
+│   ├── 1.jpg
+│   ├── 2.jpg
+│   ├── 3.jpg
+│   ├── 4.jpg
+│   └── 5.jpg
+├── app.py
+├── LICENSE
+├── pre-requirements.txt
+├── README.md
+└── requirements.txt
 ```
 
-2. Install required dependencies:
+### **Installation and Requirements**
+
+To run Multimodal-OCR2 locally, you need to configure a Python environment with the following dependencies. Ensure you have a compatible CUDA-enabled GPU for optimal performance.
+
+**1. Install Pre-requirements**
+Run the following command to update pip to the required version:
 ```bash
-pip install -r requirements.txt
+pip install pip>=23.0.0
 ```
 
-## Dependencies
+**2. Install Core Requirements**
+Install the necessary machine learning and UI libraries. You can place these in a `requirements.txt` file and run `pip install -r requirements.txt`. Note that this suite also requires `docling_core` for advanced markdown export.
 
-- torch
-- transformers
-- gradio
-- spaces
-- numpy
-- PIL (Pillow)
-- opencv-python
-- docling-core
+```text
+git+https://github.com/huggingface/transformers.git@v4.57.6
+git+https://github.com/huggingface/accelerate.git
+git+https://github.com/huggingface/peft.git
+transformers-stream-generator
+huggingface_hub
+qwen-vl-utils
+sentencepiece
+opencv-python
+torch==2.8.0
+docling-core
+torchvision
+matplotlib
+requests
+kernels
+hf_xet
+spaces
+pillow
+gradio
+av
+```
 
-## Usage
+### **Usage**
 
-### Running the Application
+Once your environment is set up and the dependencies are installed, you can launch the application by running the main Python script:
 
 ```bash
 python app.py
 ```
 
-The application will launch a Gradio interface accessible through your web browser.
+After the script initializes the interface, it will provide a local web address (usually `http://127.0.0.1:7860/`) which you can open in your browser to interact with the models. Note that the selected models will be downloaded and loaded into VRAM upon their first invocation.
 
-### Image Processing
+### **License and Source**
 
-1. Select the "Image Inference" tab
-2. Enter your query (e.g., "OCR the image", "Convert this page to docling")
-3. Upload an image file
-4. Choose your preferred model
-5. Adjust advanced parameters if needed
-6. Click Submit to process
-
-### Video Processing
-
-1. Select the "Video Inference" tab
-2. Enter your query (e.g., "Explain the video in detail")
-3. Upload a video file
-4. Choose your preferred model
-5. Adjust advanced parameters if needed
-6. Click Submit to process
-
-### Advanced Configuration
-
-The application provides several tunable parameters:
-
-- **Max New Tokens**: Maximum number of tokens to generate (1-2048)
-- **Temperature**: Controls randomness in generation (0.1-4.0)
-- **Top-p**: Nucleus sampling parameter (0.05-1.0)
-- **Top-k**: Top-k sampling parameter (1-1000)
-- **Repetition Penalty**: Penalty for repetitive text (1.0-2.0)
-
-## Example Queries
-
-### Image Processing
-- "OCR the image"
-- "Convert this page to docling"
-- "Convert chart to OTSL"
-- "Convert code to text"
-- "Convert this table to OTSL"
-- "Convert formula to latex"
-
-### Video Processing
-- "Explain the video in detail"
-- "Extract text from video frames"
-
-## Technical Details
-
-### Model Loading
-The application loads all models at startup using GPU acceleration when available. Models are loaded with 16-bit precision for optimal performance.
-
-### Video Processing
-Videos are processed by extracting 10 evenly spaced frames, which are then processed as a sequence of images by the selected model.
-
-### SmolDocling-256M Special Features
-- Automatic padding for OTSL and code conversion tasks
-- Value normalization for OCR and element identification
-- Advanced postprocessing for structured document output
-- Automatic conversion to markdown format
-
-### GPU Support
-The application uses CUDA acceleration when available and falls back to CPU processing otherwise.
-
-## Hardware Requirements
-
-- **Minimum**: 12GB RAM, CPU
-- **Recommended**: 40GB+ RAM, CUDA-compatible GPU 
-- **Storage**: 50GB+ free space for model downloads
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is open source. Please check individual model licenses for specific usage terms.
-
-## Acknowledgments
-
-- Hugging Face Transformers library
-- Gradio for the user interface
-- All model creators and maintainers
-- Docling team for document processing capabilities
-
-> [!important]
-The community GPU grant was given by [Hugging Face](https://huggingface.co/prithivMLmods) — special thanks to them. 🤗🚀
-
-## Support
-
-For issues and questions, please open an issue on the GitHub repository.
+* **License:** Apache License - Version 2.0
+* **GitHub Repository:** [https://github.com/PRITHIVSAKTHIUR/Multimodal-OCR2.git](https://github.com/PRITHIVSAKTHIUR/Multimodal-OCR2.git)
