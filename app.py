@@ -222,67 +222,112 @@ def calc_timeout_image(model_name, text, image, max_new_tokens, temperature, top
 
 @spaces.GPU(duration=calc_timeout_image)
 def generate_image(model_name, text, image, max_new_tokens=1024, temperature=0.6, top_p=0.9, top_k=50, repetition_penalty=1.2, gpu_timeout=60):
-    if not model_name or model_name not in MODEL_MAP:
-        raise gr.Error("Please select a valid model.")
-    if image is None:
-        raise gr.Error("Please upload an image.")
-    if not text or not str(text).strip():
-        raise gr.Error("Please enter your OCR/query instruction.")
-    if len(str(text)) > MAX_INPUT_TOKEN_LENGTH * 8:
-        raise gr.Error("Query is too long. Please shorten your input.")
-
-    processor, model = MODEL_MAP[model_name]
-    images = [image]
-
-    if model_name == "SmolDocling-256M-preview":
-        if "OTSL" in text or "code" in text:
-            images = [add_random_padding(img) for img in images]
-        if "OCR at text at" in text or "Identify element" in text or "formula" in text:
-            text = normalize_values(text, target_max=500)
-
-    messages = [{
-        "role": "user",
-        "content": [{"type": "image"} for _ in images] + [{"type": "text", "text": text}]
-    }]
-
-    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
-    inputs = processor(text=prompt, images=images, return_tensors="pt").to(device)
-
-    streamer = TextIteratorStreamer(processor, skip_prompt=True, skip_special_tokens=True)
-    generation_kwargs = {
-        **inputs,
-        "streamer": streamer,
-        "max_new_tokens": int(max_new_tokens),
-        "temperature": float(temperature),
-        "top_p": float(top_p),
-        "top_k": int(top_k),
-        "repetition_penalty": float(repetition_penalty),
-    }
-
-    thread = Thread(target=model.generate, kwargs=generation_kwargs)
-    thread.start()
-
     buffer = ""
-    for new_text in streamer:
-        buffer += new_text.replace("<|im_end|>", "")
-        yield buffer
+    try:
+        if not model_name or model_name not in MODEL_MAP:
+            yield "[ERROR] Please select a valid model."
+            return
+        if image is None:
+            yield "[ERROR] Please upload an image."
+            return
+        if not text or not str(text).strip():
+            yield "[ERROR] Please enter your OCR/query instruction."
+            return
+        if len(str(text)) > MAX_INPUT_TOKEN_LENGTH * 8:
+            yield "[ERROR] Query is too long. Please shorten your input."
+            return
 
-    if model_name == "SmolDocling-256M-preview":
-        cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
-        if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
-            if "<chart>" in cleaned_output:
-                cleaned_output = cleaned_output.replace("<chart>", "<otsl>").replace("</chart>", "</otsl>")
-                cleaned_output = re.sub(r'(<loc_500>)(?!.*<loc_500>)<[^>]+>', r'\1', cleaned_output)
-            doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([cleaned_output], images)
-            doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
-            markdown_output = doc.export_to_markdown()
-            yield markdown_output
+        processor, model = MODEL_MAP[model_name]
+        images = [image]
+
+        if model_name == "SmolDocling-256M-preview":
+            if "OTSL" in text or "code" in text:
+                images = [add_random_padding(img) for img in images]
+            if "OCR at text at" in text or "Identify element" in text or "formula" in text:
+                text = normalize_values(text, target_max=500)
+
+        messages = [{
+            "role": "user",
+            "content": [{"type": "image"} for _ in images] + [{"type": "text", "text": text}]
+        }]
+
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+        inputs = processor(text=prompt, images=images, return_tensors="pt").to(device)
+
+        streamer = TextIteratorStreamer(
+            processor.tokenizer if hasattr(processor, "tokenizer") else processor,
+            skip_prompt=True,
+            skip_special_tokens=True
+        )
+
+        generation_error = {"error": None}
+
+        generation_kwargs = {
+            **inputs,
+            "streamer": streamer,
+            "max_new_tokens": int(max_new_tokens),
+            "temperature": float(temperature),
+            "top_p": float(top_p),
+            "top_k": int(top_k),
+            "repetition_penalty": float(repetition_penalty),
+        }
+
+        def _run_generation():
+            try:
+                model.generate(**generation_kwargs)
+            except Exception as e:
+                generation_error["error"] = e
+                try:
+                    streamer.end()
+                except Exception:
+                    pass
+
+        thread = Thread(target=_run_generation, daemon=True)
+        thread.start()
+
+        for new_text in streamer:
+            buffer += new_text.replace("<|im_end|>", "")
+            yield buffer
+
+        thread.join(timeout=1.0)
+
+        if generation_error["error"] is not None:
+            err_msg = f"[ERROR] Inference failed: {str(generation_error['error'])}"
+            if buffer.strip():
+                yield buffer + "\n\n" + err_msg
+            else:
+                yield err_msg
+            return
+
+        if model_name == "SmolDocling-256M-preview":
+            cleaned_output = buffer.replace("<end_of_utterance>", "").strip()
+            if any(tag in cleaned_output for tag in ["<doctag>", "<otsl>", "<code>", "<chart>", "<formula>"]):
+                try:
+                    if "<chart>" in cleaned_output:
+                        cleaned_output = cleaned_output.replace("<chart>", "<otsl>").replace("</chart>", "</otsl>")
+                        cleaned_output = re.sub(r'(<loc_500>)(?!.*<loc_500>)<[^>]+>', r'\1', cleaned_output)
+                    doctags_doc = DocTagsDocument.from_doctags_and_image_pairs([cleaned_output], images)
+                    doc = DoclingDocument.load_from_doctags(doctags_doc, document_name="Document")
+                    markdown_output = doc.export_to_markdown()
+                    yield markdown_output
+                except Exception as e:
+                    yield f"[ERROR] Post-processing failed: {str(e)}"
+                    return
+            else:
+                if cleaned_output.strip():
+                    yield cleaned_output
+                else:
+                    yield "[ERROR] No output was generated."
         else:
-            yield cleaned_output
+            if not buffer.strip():
+                yield "[ERROR] No output was generated."
 
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+    except Exception as e:
+        yield f"[ERROR] {str(e)}"
+    finally:
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def noop():
@@ -669,8 +714,16 @@ function init() {
         const sb = document.getElementById('sb-run-state');
         if (sb) sb.textContent = 'Done';
     }
+    function setRunErrorState() {
+        const l = document.getElementById('output-loader');
+        if (l) l.classList.remove('active');
+        const sb = document.getElementById('sb-run-state');
+        if (sb) sb.textContent = 'Error';
+    }
+
     window.__showLoader = showLoader;
     window.__hideLoader = hideLoader;
+    window.__setRunErrorState = setRunErrorState;
 
     function flashPromptError() {
         promptInput.classList.add('error-flash');
@@ -845,7 +898,12 @@ function init() {
         showLoader();
         setTimeout(() => {
             const gradioBtn = document.getElementById('gradio-run-btn');
-            if (!gradioBtn) return;
+            if (!gradioBtn) {
+                setRunErrorState();
+                if (outputArea) outputArea.value = '[ERROR] Run button not found.';
+                showToast('Run button not found', 'error');
+                return;
+            }
             const btn = gradioBtn.querySelector('button');
             if (btn) btn.click(); else gradioBtn.click();
         }, 180);
@@ -961,6 +1019,10 @@ function watchOutputs() {
 
     let lastText = '';
 
+    function isErrorText(val) {
+        return typeof val === 'string' && val.trim().startsWith('[ERROR]');
+    }
+
     function syncOutput() {
         const el = resultContainer.querySelector('textarea') || resultContainer.querySelector('input');
         if (!el) return;
@@ -969,7 +1031,15 @@ function watchOutputs() {
             lastText = val;
             outArea.value = val;
             outArea.scrollTop = outArea.scrollHeight;
-            if (window.__hideLoader && val.trim()) window.__hideLoader();
+
+            if (val.trim()) {
+                if (isErrorText(val)) {
+                    if (window.__setRunErrorState) window.__setRunErrorState();
+                    if (window.__showToast) window.__showToast('OCR failed', 'error');
+                } else {
+                    if (window.__hideLoader) window.__hideLoader();
+                }
+            }
         }
     }
 
@@ -1178,18 +1248,21 @@ with gr.Blocks() as demo:
             return None
 
     def run_ocr(model_name, text, image_b64, max_new_tokens_v, temperature_v, top_p_v, top_k_v, repetition_penalty_v, gpu_timeout_v):
-        image = b64_to_pil(image_b64)
-        yield from generate_image(
-            model_name=model_name,
-            text=text,
-            image=image,
-            max_new_tokens=max_new_tokens_v,
-            temperature=temperature_v,
-            top_p=top_p_v,
-            top_k=top_k_v,
-            repetition_penalty=repetition_penalty_v,
-            gpu_timeout=gpu_timeout_v,
-        )
+        try:
+            image = b64_to_pil(image_b64)
+            yield from generate_image(
+                model_name=model_name,
+                text=text,
+                image=image,
+                max_new_tokens=max_new_tokens_v,
+                temperature=temperature_v,
+                top_p=top_p_v,
+                top_k=top_k_v,
+                repetition_penalty=repetition_penalty_v,
+                gpu_timeout=gpu_timeout_v,
+            )
+        except Exception as e:
+            yield f"[ERROR] {str(e)}"
 
     demo.load(fn=noop, inputs=None, outputs=None, js=gallery_js)
     demo.load(fn=noop, inputs=None, outputs=None, js=wire_outputs_js)
